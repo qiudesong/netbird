@@ -7,11 +7,23 @@ on:
       - "release-*"
     paths:
       - "release_files/skip-latest.sh"
+      - "release_files/install.sh"
+      - "release_files/rpm-provides.sh"
+      - ".goreleaser.yaml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/sync-main.yml"
+      - ".github/workflows/sync-tag.yml"
       - "release_files/tests/**"
       - ".github/workflows/release-scripts-test.yml"
   pull_request:
     paths:
       - "release_files/skip-latest.sh"
+      - "release_files/install.sh"
+      - "release_files/rpm-provides.sh"
+      - ".goreleaser.yaml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/sync-main.yml"
+      - ".github/workflows/sync-tag.yml"
       - "release_files/tests/**"
       - ".github/workflows/release-scripts-test.yml"
 concurrency:
@@ -31,5 +43,13 @@ jobs:
       - name: Install bats
         run: sudo apt-get update && sudo apt-get install -y bats
 
+      - name: Check shell syntax
+        run: |
+          bash -n release_files/skip-latest.sh
+          sh -n release_files/install.sh release_files/rpm-provides.sh
+      - uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
+        with:
+          version: v2.16.0
+          args: check --config .goreleaser.yaml
       - name: Run bats
         run: bats release_files/tests/

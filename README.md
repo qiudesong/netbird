@@ -159,6 +159,11 @@ and the [CLI reference](https://docs.netbird.io/get-started/cli#debug-for) for d
 See [How to use Discussions, Issues, and Pull Requests](https://github.com/netbirdio/netbird/discussions/6075)
 for the full workflow, or [SUPPORT.md](SUPPORT.md) for a shorter version.
 
+### Downstream development
+
+See [Downstream maintenance and releases](CONTRIBUTING.md#downstream-maintenance-and-releases)
+for this fork's upstream mirror, branch policy and `-custom.N` releases.
+
 ### Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. NetBird works ticket

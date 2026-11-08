@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test-install-script:
+    if: github.repository == 'netbirdio/netbird'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -29,6 +30,7 @@ jobs:
 
       - name: run install script
         env:
+          NETBIRD_REPOSITORY_OWNER: netbirdio
           SKIP_UI_APP: ${{ matrix.skip_ui_mode }}
           USE_BIN_INSTALL: ${{ matrix.install_binary }}
           GITHUB_TOKEN: ${{ secrets.RO_API_CALLER_TOKEN }}
@@ -38,3 +40,15 @@ jobs:
 
       - name: check cli binary
         run: command -v netbird
+
+  verify-fork-installer:
+    if: github.repository == 'qiudesong/netbird'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install -y bats
+      - run: bats --filter 'installer' release_files/tests/skip-latest.bats

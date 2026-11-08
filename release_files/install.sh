@@ -5,10 +5,24 @@ set -e
 CONFIG_FOLDER="/etc/netbird"
 CONFIG_FILE="$CONFIG_FOLDER/install.conf"
 
-OWNER="netbirdio"
+OWNER="${NETBIRD_REPOSITORY_OWNER:-qiudesong}"
 REPO="netbird"
 CLI_APP="netbird"
 UI_APP="netbird-ui"
+
+# Fork releases use verified CLI archives until independent GUI/package hosting exists.
+if [ "$OWNER" != netbirdio ]; then
+    USE_BIN_INSTALL=true
+    SKIP_UI_APP=true
+    NETBIRD_INSTALL_DIR="${NETBIRD_INSTALL_DIR:-/usr/local/bin}"
+    NETBIRD_INSTALL_SERVICE="${NETBIRD_INSTALL_SERVICE:-false}"
+else
+    NETBIRD_INSTALL_SERVICE="${NETBIRD_INSTALL_SERVICE:-true}"
+fi
+case "$NETBIRD_INSTALL_SERVICE" in
+    true|false) ;;
+    *) echo 'NETBIRD_INSTALL_SERVICE must be true or false' >&2; exit 1 ;;
+esac
 
 # Set default variable
 OS_NAME=""
@@ -47,7 +61,10 @@ get_release() {
     local RELEASE=$1
     if [ "$RELEASE" = "latest" ]; then
         local TAG="latest"
-        local URL="https://pkgs.netbird.io/releases/latest"
+        local URL="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
+        if [ "$OWNER" = netbirdio ]; then
+            URL="https://pkgs.netbird.io/releases/latest"
+        fi
     else
         local TAG="tags/${RELEASE}"
         local URL="https://api.github.com/repos/${OWNER}/${REPO}/releases/${TAG}"
@@ -58,8 +75,32 @@ get_release() {
     else
           OUTPUT=$(curl -s "${URL}") 
     fi
-	TAG_NAME=$(echo ${OUTPUT} |  grep -Eo '\"tag_name\":\s*\"v([0-9]+\.){2}[0-9]+"' | tail -n 1)
-	echo "${TAG_NAME}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+'
+    if [ "$OWNER" = netbirdio ]; then
+        TAG_NAME=$(printf '%s' "$OUTPUT" | grep -Eo '"tag_name":[[:space:]]*"v([0-9]+\.){2}[0-9]+"' | tail -n 1)
+    else
+        TAG_NAME=$(printf '%s' "$OUTPUT" | grep -Eo '"tag_name":[[:space:]]*"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-custom\.[1-9][0-9]*"' | tail -n 1)
+    fi
+    TAG_NAME=$(printf '%s' "$TAG_NAME" | sed -E 's/^[^:]*:[[:space:]]*"([^"]*)"$/\1/')
+    test -n "$TAG_NAME" || { echo 'No supported release tag found' >&2; return 1; }
+    printf '%s\n' "$TAG_NAME"
+}
+
+verify_release_archive() {
+    [ "$OWNER" != netbirdio ] || return 0
+    : "${NETBIRD_GPG_KEY:?set NETBIRD_GPG_KEY to an independently trusted public key file}"
+    curl -fsSL --proto "$PROTO_HTTPS" --proto-redir "$PROTO_HTTPS" \
+        -o "$NB_TMPDIR/SHA256SUMS" "$BASE_URL/$VERSION/SHA256SUMS"
+    curl -fsSL --proto "$PROTO_HTTPS" --proto-redir "$PROTO_HTTPS" \
+        -o "$NB_TMPDIR/SHA256SUMS.asc" "$BASE_URL/$VERSION/SHA256SUMS.asc"
+    mkdir -p "$NB_TMPDIR/gnupg"
+    chmod 0700 "$NB_TMPDIR/gnupg"
+    gpg --homedir "$NB_TMPDIR/gnupg" --batch --quiet --import "$NETBIRD_GPG_KEY"
+    gpg --homedir "$NB_TMPDIR/gnupg" --batch --verify "$NB_TMPDIR/SHA256SUMS.asc" "$NB_TMPDIR/SHA256SUMS"
+    (
+        cd "$NB_TMPDIR"
+        awk -v name="$BINARY_NAME" '$2 == name { print; found++ } END { if (found != 1) exit 1 }' SHA256SUMS > selected.sha256
+        shasum -a 256 --check selected.sha256
+    )
 }
 
 download_release_binary() {
@@ -92,6 +133,8 @@ download_release_binary() {
       curl -L --proto "$PROTO_HTTPS" --proto-redir "$PROTO_HTTPS" -o "$ARCHIVE_PATH" "$DOWNLOAD_URL" || curl -L --proto "$PROTO_HTTPS" --proto-redir "$PROTO_HTTPS" -o "$ARCHIVE_PATH" --dns-servers 8.8.8.8 "$DOWNLOAD_URL"
     fi
 
+
+    verify_release_archive
 
     if [ "$OS_TYPE" = "darwin" ] && [ "$1" = "$UI_APP" ]; then
         INSTALL_DIR="/Applications/NetBird UI.app"
@@ -211,7 +254,7 @@ check_use_bin_variable() {
 }
 
 install_netbird() {
-    if [ -x "$(command -v netbird)" ]; then
+    if [ "$NETBIRD_INSTALL_SERVICE" = true ] && [ -x "$(command -v netbird)" ]; then
       status_output="$(netbird status 2>&1 || true)"
 
       if echo "$status_output" | grep -q 'failed to connect to daemon error: context deadline exceeded'; then
@@ -314,6 +357,11 @@ install_netbird() {
     ;;
     esac
 
+    if [ "$NETBIRD_INSTALL_SERVICE" = false ]; then
+        echo "Installed NetBird CLI to $INSTALL_DIR/netbird"
+        return 0
+    fi
+
     if [ "$OS_NAME" = "synology" ]; then
         prepare_tun_module
     fi
@@ -359,6 +407,10 @@ stop_running_netbird_ui() {
 }
 
 update_netbird() {
+  if [ "$NETBIRD_INSTALL_SERVICE" = false ]; then
+    install_native_binaries
+    return 0
+  fi
   if is_bin_package_manager "$CONFIG_FILE"; then
     latest_release=$(get_release "latest")
     latest_version=${latest_release#v}
@@ -480,7 +532,13 @@ if type uname >/dev/null 2>&1; then
 	esac
 fi
 
-UPDATE_FLAG=$1
+INSTALL_DIR="${NETBIRD_INSTALL_DIR:-$INSTALL_DIR}"
+case "$INSTALL_DIR" in
+    /*) ;;
+    *) INSTALL_DIR="$PWD/$INSTALL_DIR" ;;
+esac
+
+UPDATE_FLAG=${1:-}
 
 if [ "${UPDATE_NETBIRD}-x" = "true-x" ]; then
   UPDATE_FLAG="--update"

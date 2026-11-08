@@ -5,12 +5,20 @@ on:
     branches:
       - main
 
+  schedule:
+    - cron: '15 2 * * *' # Daily 10:15 Asia/Shanghai.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || github.actor_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   trigger_sync_main:
+    if: github.repository == 'netbirdio/netbird' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger main branch sync
@@ -20,3 +28,57 @@ jobs:
           repo: ${{ secrets.UPSTREAM_REPO }}
           token: ${{ secrets.NC_GITHUB_TOKEN }}
           inputs: '{ "sha": "${{ github.sha }}" }'
+
+  mirror_upstream_main:
+    if: github.repository == 'qiudesong/netbird' && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.UPSTREAM_MIRROR_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Align the reserved upstream/main mirror
+        run: |
+          set -euo pipefail
+
+          official=https://github.com/netbirdio/netbird.git
+          source_ref=refs/netbird-mirror/upstream-main
+          mirror_ref=refs/heads/upstream/main
+
+          remote_head() {
+              git ls-remote --heads origin "$mirror_ref" | awk -v ref="$mirror_ref" '$2 == ref { print $1 }'
+          }
+
+          # The leading + also accepts an official history rewrite in this mirror-only ref.
+          # No checkout, reset or rebase is needed in the downstream working tree.
+          git fetch --no-tags "$official" "+refs/heads/main:$source_ref"
+          target=$(git rev-parse --verify "$source_ref^{commit}")
+          previous=$(remote_head)
+
+          if [[ "$previous" == "$target" ]]; then
+              printf 'origin/upstream/main already matches official main at %s.\n' "$target"
+              exit 0
+          fi
+
+          # An empty lease requires the branch not to exist yet. An exact SHA lease keeps a
+          # concurrent branch update from being overwritten between inspection and push.
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+              push "--force-with-lease=$mirror_ref:$previous" origin "$target:$mirror_ref"
+
+          actual=$(remote_head)
+          if [[ "$actual" != "$target" ]]; then
+              echo 'Mirror verification failed: origin/upstream/main changed during synchronization.' >&2
+              exit 1
+          fi
+          printf 'Mirrored official main: %s -> %s\n' "${previous:-absent}" "$target"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+              {
+                  printf 'Updated fork branch `upstream/main` to official main.\n\n'
+                  printf 'Previous commit: `%s`\n\nOfficial commit: `%s`\n' "${previous:-absent}" "$target"
+              } >> "$GITHUB_STEP_SUMMARY"
+          fi
