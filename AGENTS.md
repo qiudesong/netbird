@@ -12,8 +12,75 @@ This file applies to the whole repository, and is the single source of truth for
 agent guidance here. `CLAUDE.md` is a one-line pointer to it — keep the guidance
 in this file, not duplicated there.
 
+## Downstream maintenance constraints
+
+This is `qiudesong/netbird`, a fork of `netbirdio/netbird`. Before changing branches,
+synchronization, versions, builds, or releases, read and follow
+[Downstream maintenance and releases](CONTRIBUTING.md#downstream-maintenance-and-releases).
+Use that guide and the current CI configuration for procedures. The upstream
+guidelines below continue to apply.
+
+### Scope and upstream consistency
+
+- Follow neighboring implementations for naming, interfaces, lifecycle, error
+  handling, and file layout. Reuse existing constants, types, and helpers. Edit
+  existing entry points instead of creating parallel fork-specific implementations or
+  configuration copies. Add necessary files within the existing layout and retain
+  the Go module path.
+- Change only task-related content and preserve user edits. Avoid unrelated
+  refactoring or repository-wide formatting. Write complex logic out clearly. Do
+  not independently change configuration contracts, defaults, build matrices, or
+  supported platforms.
+- Do not add installation, signing, key, or infrastructure prerequisites solely
+  because this is a fork. Base security policy on the distribution channel and
+  explicit requirements. Never bypass existing security controls to pass checks.
+- Do not force-push or rewrite shared main or maintenance branches; published tags
+  are immutable. Forced mirror updates are limited to `refs/heads/upstream/main`,
+  using an exact `--force-with-lease` with the observed SHA. Never extend them to
+  other refs; inspect concurrent writes when a lease is rejected.
+
+### Go version and code style
+
+- Before editing Go code, read the owning module's `go.mod` and use its `go`
+  directive as the language and standard library compatibility baseline. Check
+  submodules separately. A newer local compiler or `toolchain` directive does not
+  relax that baseline.
+- Use modern syntax and APIs supported by the baseline when semantically
+  equivalent and applicable. Avoid legacy compatibility patterns with direct
+  replacements, and keep modernization within the task's scope.
+- For goroutine lifecycle management on Go 1.25 or newer, use `wg.Go(fn)` and remove
+  the corresponding Add/Done counting. Preserve cancellation, error propagation,
+  and waiting semantics; callbacks must not panic.
+- Run `gofmt` on modified Go files. Follow neighboring code, `.golangci.yaml`, and
+  current CI for imports and formatting. Do not copy another repository's format
+  configuration. Follow the upstream concurrency and platform guidance below.
+
+### Validation and commit requirements
+
+- Before every `git commit`, including amendments and conflict-resolution commits,
+  inspect applicable workflows, lint rules, build tags, and release configuration.
+  Complete the required validation first; unit tests do not replace other CI checks.
+- For Go changes, run formatting, static checks, and relevant tests with tool
+  versions matching CI. Resolve the actual version when CI uses `latest`. Match
+  toolchains, tags, ldflags, target platforms, and CGO settings; validate affected
+  submodules separately. Add `-race` checks for concurrency changes and follow the
+  isolation requirements below for privileged tests.
+- Match validation to the change: check diffs and links for documentation; follow
+  the maintenance guide for CI, release, or installer changes, testing actual source
+  behavior and affected platforms. Avoid unrelated full-matrix builds and duplicate
+  implementations used only as test oracles.
+- Validate the final content to be committed and rerun affected checks after edits.
+  Before committing, run `git diff --cached --check` and record the actual commands,
+  tool versions, and results.
+- Fix relevant failures and verify again. Do not downgrade tools, disable checks,
+  skip cases, or weaken assertions to pass. Checks that were not run, canceled,
+  timed out, or blocked by download failures have not passed. Report environment
+  limits and missing coverage, then complete required validation before committing.
+  Honor existing user authorization without adding repeated confirmation steps.
+
 ## Contents
 
+- [Downstream maintenance constraints](#downstream-maintenance-constraints)
 - [STOP and ask the user before](#stop-and-ask-the-user-before)
 - [Quick reference](#quick-reference)
 - [Structure](#structure)

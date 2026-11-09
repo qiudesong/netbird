@@ -115,6 +115,7 @@ aligns with our security standards and design expectations.
     - [Translations](#translations)
     - [Other project repositories](#other-project-repositories)
     - [Contributor License Agreement](#contributor-license-agreement)
+    - [Downstream maintenance and releases](#downstream-maintenance-and-releases)
 
 ## Code of conduct
 
@@ -636,3 +637,168 @@ NetBird project is composed of 3 main repositories:
 That we do not have any potential problems later it is sadly necessary to sign a [Contributor License Agreement](CONTRIBUTOR_LICENSE_AGREEMENT.md). That can be done literally with the push of a button.
 
 A bot will automatically comment on the pull request once it got opened asking for the agreement to be signed. Before it did not get signed it is sadly not possible to merge it in.
+
+
+## Downstream maintenance and releases
+
+This fork is `qiudesong/netbird`, based on `netbirdio/netbird`. Fork behavior is
+implemented directly in the existing workflows, `.goreleaser.yaml`, release
+scripts and this guide. Update these source files when merging upstream changes;
+do not maintain a second copy of the build or installation configuration. Keep
+the Go module path unchanged.
+
+### Branches and synchronization
+
+| Branch or ref | Purpose |
+| --- | --- |
+| Fork `upstream/main` (local `origin/upstream/main`) | Reserved exact mirror of the latest fetched official main. |
+| Remote-tracking `upstream/main` (`refs/remotes/upstream/main`) | Direct official view after fetching the upstream remote. |
+| `main` | Downstream integration branch. |
+| `feat/*`, `fix/*` | Short-lived changes based on downstream main. |
+| `sync/upstream-vX.Y.Z` | Review and merge a stable upstream version. |
+| `release-X.Y` | Optional maintenance line for an older published version. |
+
+The existing **sync main** workflow mirrors official main every day at 10:15
+Asia/Shanghai and supports manual dispatch. It runs from downstream main and
+pushes only `refs/heads/upstream/main`, using an explicit observed-SHA
+`--force-with-lease`. Its first run creates the branch. Upstream history rewrites
+and downstream-only commits on this reserved mirror are replaced by the official
+history. Concurrent writes cause a rejected lease and a failed run; inspect the
+competing update before rerunning. No other branch or tag is force-updated.
+
+Permit automation updates on this mirror in branch rules. If the default token
+cannot update workflow files or bypass a mirror-specific rule, configure
+`UPSTREAM_MIRROR_TOKEN` with the required contents/workflows permissions on this
+fork. Default-token pushes do not start ordinary downstream workflows. A separate
+token may trigger workflows from the mirrored official commit, so review their
+branch filters. Inspect the fork mirror using an unambiguous ref:
+
+```bash
+rtk git fetch origin
+rtk git log -1 refs/remotes/origin/upstream/main
+```
+
+The existing **sync tag** workflow checks stable official releases every Monday
+at 10:00 Asia/Shanghai. Manual dispatch accepts an optional `upstream_tag`. It
+opens a synchronization PR without auto-merging. Conflicts stop the run and are
+listed in its summary; existing synchronization branches are never force-pushed.
+Enable Actions creating PRs in repository settings. Configure
+`UPSTREAM_SYNC_TOKEN` with contents/PR/workflow access if PR creation or CI
+triggering needs it: PRs created by `GITHUB_TOKEN` do not trigger ordinary PR CI.
+
+Use merge commits for synchronization PRs so later merges retain official
+ancestry. Feature PRs may be squashed. The tracked Git Town configuration uses
+`ff-only` for local perennial tracking updates; upstream integration itself is
+an explicit merge. Rebase unpublished feature branches onto downstream main as
+needed. Do not rebase or force-push shared main or maintenance lines. Backport
+selected fixes with `git cherry-pick -x` and carry maintenance fixes back to main.
+
+For example, to integrate a stable version manually:
+
+```bash
+rtk git fetch upstream --prune --tags
+rtk git switch main
+rtk git pull --ff-only origin main
+rtk git switch -c sync/upstream-v0.60.1
+rtk git merge --no-ff v0.60.1
+```
+
+Choose a stable baseline before the first downstream release. Merging an older
+tag into a newer upstream checkout does not remove newer upstream code.
+
+### Versions and publishing
+
+Use annotated or signed tags `vX.Y.Z-custom.N`, where `vX.Y.Z` is the official
+stable baseline and `N` starts at 1. Increment N for another downstream release
+on the same baseline; reset it after upgrading the baseline. Keep released tags
+and assets immutable. Protect release tags and shared branches with repository
+rulesets. Push only the chosen tag, never `git push --tags`.
+
+Although SemVer treats `-custom.N` as a prerelease suffix, this fork publishes it as
+a stable release in its own channel. The existing `release_files/skip-latest.sh`
+compares numbered revisions numerically, excluding official tags and previews.
+Promotion uses published releases only, so drafts cannot block a valid release
+and old maintenance lines cannot move latest backwards. Windows numeric versions
+use the downstream revision as their fourth component (all parts <= 65535).
+
+The existing **Release** workflow builds drafts on custom tags. Manual dispatch with
+`tag` verifies and promotes the existing artifacts without rebuilding. Keep this
+workflow enabled; if it was disabled for an earlier standalone fork pipeline,
+re-enable `release.yml` in GitHub Actions. The official external signing,
+certification and downstream-repository dispatches are restricted to the official
+repository. The fork uses GPG signing and its own GHCR namespace.
+
+Configure secrets `CUSTOM_GPG_PRIVATE_KEY` (ASCII-armored private key) and
+`CUSTOM_GPG_PASSPHRASE`, and variables `CUSTOM_GPG_PUBLIC_KEY` and
+`CUSTOM_GPG_FINGERPRINT` (uppercase full primary fingerprint). The existing base64
+`GPG_RPM_PRIVATE_KEY` and `GPG_RPM_PASSPHRASE` secrets are also supported. A tag
+release fails when required signing configuration is missing. The workflow token
+needs contents/package write access; grant this repository access to existing
+`ghcr.io/qiudesong/*` packages if needed.
+
+Builds use the original build matrix, Dockerfiles, license collection and
+packaging hooks in `.goreleaser.yaml`. No fork-specific build config is used.
+Linux packages are named `netbird-mod` and conflict with the official package.
+RPMs and aggregate artifact checksums are signed. External APT/YUM uploads and
+Homebrew publishing stay disabled until independent hosting is configured.
+Official GUI/platform signing infrastructure is not invoked by this fork.
+
+1. Merge reviewed code into main or the matching maintenance branch; verify CI
+   and downstream/client-control-plane compatibility on the chosen commit.
+2. Create a release tag on the exact verified commit:
+
+   ```bash
+   rtk git tag -a v0.60.1-custom.1 VERIFIED_COMMIT_SHA -m 'Based on upstream v0.60.1'
+   rtk git push origin refs/tags/v0.60.1-custom.1
+   ```
+
+3. Release validates the annotated tag, its integration branch and official
+   baseline fetched into `refs/upstream-tags/`. It builds a Draft Release and
+   versioned images, checks the final CLI archive, records every image digest,
+   and signs `SHA256SUMS`. A published release cannot be rebuilt.
+4. Test the draft's actual artifacts. `release.json` records official and fork
+   commits; `images.json` records versioned images, immutable digests and their
+   promotion aliases. Both are covered by `SHA256SUMS.asc`.
+5. Dispatch **Release** manually with the tag. It checks trusted signatures,
+   checksums and provenance before advancing `custom-latest` aliases and GitHub
+   Latest, when the release is the newest published fork version.
+
+Versioned images omit the leading v, for example
+`ghcr.io/qiudesong/netbird:0.60.1-custom.1`. Production deployments should pin a
+recorded image digest. Multiple registry aliases and GitHub Latest cannot update
+atomically; if promotion fails, rerun the same tag using its signed artifacts.
+Generated provenance stays in ignored `.release/` rather than tracked files.
+
+### Installation and rollback
+
+The original `release_files/install.sh` defaults to this fork's verified CLI
+archives and keeps the full `-custom.N` version. Obtain the signing key through an
+independently trusted channel. Bash/POSIX sh, curl, GnuPG, tar, shasum and ordinary
+file utilities are required:
+
+```bash
+NETBIRD_GPG_KEY=/path/to/trusted-fork-key.asc \
+NETBIRD_INSTALL_DIR="$HOME/.local/bin" \
+NETBIRD_RELEASE=v0.60.1-custom.1 \
+  sh release_files/install.sh
+```
+
+Omit `NETBIRD_RELEASE` to select the fork's latest release. Fork installation does
+not configure official package repositories or start the daemon by default;
+`NETBIRD_INSTALL_SERVICE=true` explicitly enables service installation. Native
+package installation still follows its service hooks. Windows CLI archives are
+release assets; GUI installers need independent signing infrastructure.
+
+Builds inject the existing version update variable with
+`https://github.com/qiudesong/netbird/releases/latest/download/version`. This
+public asset contains plain `X.Y.Z-custom.N` without a newline. Existing peer minimum
+version checks retain their upstream semantics. Roll back to an earlier artifact
+or digest, keeping tags unchanged; check database migration compatibility and
+backups before rolling back a control-plane service.
+
+Release-policy, mirror and installer tests live in the existing Bats suite:
+
+```bash
+rtk proxy bats release_files/tests/
+rtk proxy goreleaser check --config .goreleaser.yaml
+```

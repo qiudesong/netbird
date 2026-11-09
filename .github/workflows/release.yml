@@ -8,8 +8,17 @@ on:
       - main
       - "release-*"
   pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Verified draft tag to publish (vX.Y.Z-custom.N)
+        required: true
+        type: string
 
 env:
+  GOWORK: 'off'
+  GORELEASER_COMMAND: release
+  WINDOWS_BUILD_NUMBER: '0'
   SIGN_PIPE_VER: "v0.1.9"
   GORELEASER_VER: "v2.16.0"
   PRODUCT_NAME: "NetBird"
@@ -17,17 +26,18 @@ env:
   flags: ""
   SKIP_PUBLISH: "true"
   SKIP_LATEST: "true"
-  SKIP_DOCKER_PUSH: "false"
+  SKIP_DOCKER_PUSH: "true"
   # GoReleaser otherwise picks its own tag among those on HEAD, so a release
   # tag sharing a commit with an rc tag would be built and published as the rc.
   GORELEASER_CURRENT_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || github.actor_id }}
-  cancel-in-progress: true
+  group: ${{ (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && 'release-promotion' || format('{0}-{1}-{2}', github.workflow, github.ref, github.actor_id) }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'workflow_dispatch' }}
 
 jobs:
   freebsd_port_trigger:
+    if: github.repository == 'netbirdio/netbird' && github.event_name != 'workflow_dispatch'
     name: "FreeBSD Port / Trigger"
     runs-on: ubuntu-22.04
     outputs:
@@ -191,7 +201,14 @@ jobs:
           retention-days: 30
 
   release:
-    runs-on: ubuntu-24.04-8-core
+    if: github.event_name != 'workflow_dispatch' && (github.repository == 'qiudesong/netbird' || github.repository == 'netbirdio/netbird')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     outputs:
       release_artifact_url: ${{ steps.upload_release.outputs.artifact-url }}
       linux_packages_artifact_url: ${{ steps.upload_linux_packages.outputs.artifact-url }}
@@ -205,6 +222,13 @@ jobs:
           fetch-depth: 0 # It is required for GoReleaser to work properly
           persist-credentials: false
 
+      - name: Initialize release metadata
+        run: |
+          mkdir -p .release
+          printf development > .release/version
+          printf '{"snapshot":true}\n' > .release/release.json
+          printf 'Unsigned snapshot\n' > .release/signing-key.asc
+
       - name: Parse semver string
         id: semver_parser
         uses: netbirdio/shared-actions/actions/parse-semver@be5df6047383da2236e02243cceb857d8567c27e # v0.0.2
@@ -213,21 +237,24 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: | 
           echo "flags=--snapshot" >> $GITHUB_ENV
+          if [[ "$GITHUB_REPOSITORY" == qiudesong/netbird ]]; then
+            echo "GORELEASER_COMMAND=build" >> "$GITHUB_ENV"
+          fi
 
       - name: Set build vars
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          if [[ "x-${{ steps.semver_parser.outputs.prerelease }}" == "x-" && "x-${{ github.repository }}" == "x-netbirdio/netbird" ]]; then
-            echo "x-${{ github.repository }}" 
-            echo "x-${{ steps.semver_parser.outputs.prerelease }}"
-            echo "SKIP_PUBLISH=false" >> $GITHUB_ENV
-          else
-            echo "x-${{ github.repository }}" 
-            echo "x-${{ steps.semver_parser.outputs.prerelease }}"
-          fi
-          
-          if [[ "x-${{ github.repository }}" != "x-netbirdio/netbird" ]]; then
-            echo "SKIP_DOCKER_PUSH=true" >> $GITHUB_ENV
+          if [[ "$GITHUB_REPOSITORY" == qiudesong/netbird ]]; then
+            bash release_files/skip-latest.sh check-draft "$GITHUB_REF_NAME"
+            git fetch --no-tags https://github.com/netbirdio/netbird.git '+refs/tags/v*:refs/upstream-tags/v*'
+            bash release_files/skip-latest.sh prepare "$GITHUB_REF_NAME"
+            echo "WINDOWS_BUILD_NUMBER=${GITHUB_REF_NAME##*-custom.}" >> "$GITHUB_ENV"
+            echo 'flags=--release-notes .release/release-notes.md' >> "$GITHUB_ENV"
+            # GitHub receives a draft; external package uploads and latest stay disabled.
+            echo 'SKIP_DOCKER_PUSH=false' >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF_NAME" != *-* ]]; then
+            echo 'SKIP_PUBLISH=false' >> "$GITHUB_ENV"
+            echo 'SKIP_DOCKER_PUSH=false' >> "$GITHUB_ENV"
           fi
 
       # The Docker latest tags and the Homebrew formula are gated on
@@ -261,6 +288,7 @@ jobs:
       - name: check git status
         run: git --no-pager diff --exit-code
       - name: Generate RPM changelog from git tags
+        if: github.repository == 'netbirdio/netbird' || startsWith(github.ref, 'refs/tags/')
         # nfpm embeds changelog.yml into the RPM; Red Hat software certification
         # requires a changelog. Generated, not committed (see .gitignore).
         # chglog is a go.mod tool directive, so go.sum pins it and its deps.
@@ -281,41 +309,56 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 #v4.1.0
       - name: Login to Docker hub
-        if: github.event_name != 'pull_request'
+        if: github.repository == 'netbirdio/netbird' && github.event_name != 'pull_request'
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
       - name: Log in to the GitHub container registry
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.repository == 'netbirdio/netbird' || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.CI_DOCKER_PUSH_GITHUB_TOKEN }}
+          password: ${{ secrets.CI_DOCKER_PUSH_GITHUB_TOKEN || github.token }}
       - name: Install OS build dependencies
         run: sudo apt update && sudo apt install -y -q gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
 
       - name: Decode GPG signing key
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: startsWith(github.ref, 'refs/tags/')
         env:
-          GPG_RPM_PRIVATE_KEY: ${{ secrets.GPG_RPM_PRIVATE_KEY }}
+          GPG_RPM_PRIVATE_KEY: ${{ secrets.CUSTOM_GPG_PRIVATE_KEY || secrets.GPG_RPM_PRIVATE_KEY }}
+          GPG_PUBLIC_KEY: ${{ vars.CUSTOM_GPG_PUBLIC_KEY }}
+          GPG_FINGERPRINT: ${{ vars.CUSTOM_GPG_FINGERPRINT }}
         run: |
-          echo "$GPG_RPM_PRIVATE_KEY" | base64 -d > /tmp/gpg-rpm-signing-key.asc
-          echo "GPG_RPM_KEY_FILE=/tmp/gpg-rpm-signing-key.asc" >> $GITHUB_ENV
+          test -n "$GPG_RPM_PRIVATE_KEY"
+          umask 077
+          key_file="$RUNNER_TEMP/gpg-rpm-signing-key.asc"
+          if [[ "$GPG_RPM_PRIVATE_KEY" == '-----BEGIN PGP'* ]]; then
+            printf '%s' "$GPG_RPM_PRIVATE_KEY" > "$key_file"
+          else
+            printf '%s' "$GPG_RPM_PRIVATE_KEY" | base64 -d > "$key_file"
+          fi
+          echo "GPG_RPM_KEY_FILE=$key_file" >> "$GITHUB_ENV"
+          gpg --batch --import "$key_file"
+          test -n "$GPG_PUBLIC_KEY"
+          test -n "$GPG_FINGERPRINT"
+          printf '%s' "$GPG_PUBLIC_KEY" > .release/signing-key.asc
+          fingerprint=$(gpg --show-keys --with-colons .release/signing-key.asc | awk -F: '$1 == "fpr" {print $10; exit}')
+          test "$fingerprint" = "$GPG_FINGERPRINT"
 
       - name: Install goversioninfo
         run: go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@b66839b # v1.7.0
       - name: Generate windows syso amd64
-        run: goversioninfo  -icon client/ui/build/windows/icon.ico -manifest client/manifest.xml -product-name ${{ env.PRODUCT_NAME }} -copyright "${{ env.COPYRIGHT }}" -ver-major ${{ steps.semver_parser.outputs.major }} -ver-minor ${{ steps.semver_parser.outputs.minor }} -ver-patch ${{ steps.semver_parser.outputs.patch }} -ver-build 0 -file-version ${{ steps.semver_parser.outputs.fullversion }}.0 -product-version ${{ steps.semver_parser.outputs.fullversion }}.0 -o client/resources_windows_amd64.syso
+        run: goversioninfo  -icon client/ui/build/windows/icon.ico -manifest client/manifest.xml -product-name ${{ env.PRODUCT_NAME }} -copyright "${{ env.COPYRIGHT }}" -ver-major ${{ steps.semver_parser.outputs.major }} -ver-minor ${{ steps.semver_parser.outputs.minor }} -ver-patch ${{ steps.semver_parser.outputs.patch }} -ver-build ${{ env.WINDOWS_BUILD_NUMBER }} -file-version ${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${{ steps.semver_parser.outputs.patch }}.${{ env.WINDOWS_BUILD_NUMBER }} -product-version ${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${{ steps.semver_parser.outputs.patch }}.${{ env.WINDOWS_BUILD_NUMBER }} -o client/resources_windows_amd64.syso
       - name: Generate windows syso arm64
-        run: goversioninfo -arm -64 -icon client/ui/build/windows/icon.ico -manifest client/manifest.xml -product-name ${{ env.PRODUCT_NAME }} -copyright "${{ env.COPYRIGHT }}" -ver-major ${{ steps.semver_parser.outputs.major }} -ver-minor ${{ steps.semver_parser.outputs.minor }} -ver-patch ${{ steps.semver_parser.outputs.patch }} -ver-build 0 -file-version ${{ steps.semver_parser.outputs.fullversion }}.0 -product-version ${{ steps.semver_parser.outputs.fullversion }}.0 -o client/resources_windows_arm64.syso
+        run: goversioninfo -arm -64 -icon client/ui/build/windows/icon.ico -manifest client/manifest.xml -product-name ${{ env.PRODUCT_NAME }} -copyright "${{ env.COPYRIGHT }}" -ver-major ${{ steps.semver_parser.outputs.major }} -ver-minor ${{ steps.semver_parser.outputs.minor }} -ver-patch ${{ steps.semver_parser.outputs.patch }} -ver-build ${{ env.WINDOWS_BUILD_NUMBER }} -file-version ${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${{ steps.semver_parser.outputs.patch }}.${{ env.WINDOWS_BUILD_NUMBER }} -product-version ${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${{ steps.semver_parser.outputs.patch }}.${{ env.WINDOWS_BUILD_NUMBER }} -o client/resources_windows_arm64.syso
       - name: Run GoReleaser
         id: goreleaser
         uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           version: ${{ env.GORELEASER_VER }}
-          args: release --config .goreleaser.generated.yaml --clean ${{ env.flags }}
+          args: ${{ env.GORELEASER_COMMAND }} --config .goreleaser.generated.yaml --clean --parallelism 2 ${{ env.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
@@ -323,34 +366,49 @@ jobs:
           UPLOAD_YUM_SECRET: ${{ secrets.PKG_UPLOAD_SECRET }}
           GPG_RPM_KEY_FILE: ${{ env.GPG_RPM_KEY_FILE }}
           # One per nfpm id: GoReleaser looks the passphrase up as NFPM_<ID>_PASSPHRASE.
-          NFPM_NETBIRD_RPM_AMD64_PASSPHRASE: ${{ secrets.GPG_RPM_PASSPHRASE }}
-          NFPM_NETBIRD_RPM_ARM64_PASSPHRASE: ${{ secrets.GPG_RPM_PASSPHRASE }}
-          NFPM_NETBIRD_RPM_ARM_PASSPHRASE: ${{ secrets.GPG_RPM_PASSPHRASE }}
-          NFPM_NETBIRD_RPM_386_PASSPHRASE: ${{ secrets.GPG_RPM_PASSPHRASE }}
+          NFPM_NETBIRD_RPM_AMD64_PASSPHRASE: ${{ secrets.CUSTOM_GPG_PASSPHRASE || secrets.GPG_RPM_PASSPHRASE }}
+          NFPM_NETBIRD_RPM_ARM64_PASSPHRASE: ${{ secrets.CUSTOM_GPG_PASSPHRASE || secrets.GPG_RPM_PASSPHRASE }}
+          NFPM_NETBIRD_RPM_ARM_PASSPHRASE: ${{ secrets.CUSTOM_GPG_PASSPHRASE || secrets.GPG_RPM_PASSPHRASE }}
+          NFPM_NETBIRD_RPM_386_PASSPHRASE: ${{ secrets.CUSTOM_GPG_PASSPHRASE || secrets.GPG_RPM_PASSPHRASE }}
           SKIP_PUBLISH: ${{ env.SKIP_PUBLISH }}
           SKIP_LATEST: ${{ env.SKIP_LATEST }}
           SKIP_DOCKER_PUSH: ${{ env.SKIP_DOCKER_PUSH }}
       - name: Verify RPM signatures
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          docker run --rm -v $(pwd)/dist:/dist fedora:41 bash -c '
-            dnf install -y -q rpm-sign curl >/dev/null 2>&1
-            curl -sSL https://pkgs.netbird.io/yum/repodata/repomd.xml.key -o /tmp/rpm-pub.key
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/.release/signing-key.asc:/tmp/rpm-pub.key:ro" fedora:41 bash -c '
+            set -euo pipefail
+            dnf install -y -q rpm-sign >/dev/null 2>&1
             rpm --import /tmp/rpm-pub.key
-            echo "=== Verifying RPM signatures ==="
-            for rpm_file in /dist/*amd64*.rpm; do
-              [ -f "$rpm_file" ] || continue
-              echo "--- $(basename $rpm_file) ---"
+            for rpm_file in /dist/*.rpm; do
               rpm -K "$rpm_file"
             done
           '
+      - name: Smoke-check and seal the draft release
+        if: github.repository == 'qiudesong/netbird' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GPG_FINGERPRINT: ${{ vars.CUSTOM_GPG_FINGERPRINT }}
+          GPG_PASSPHRASE: ${{ secrets.CUSTOM_GPG_PASSPHRASE || secrets.GPG_RPM_PASSPHRASE }}
+        run: |
+          mkdir "$RUNNER_TEMP/release-smoke"
+          tar -xzf "dist/netbird_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz" -C "$RUNNER_TEMP/release-smoke" netbird
+          "$RUNNER_TEMP/release-smoke/netbird" version | grep -Fx -- "${GITHUB_REF_NAME#v}"
+          bash release_files/skip-latest.sh seal "$GITHUB_REF_NAME"
+          umask 077
+          printf '%s' "$GPG_PASSPHRASE" > "$RUNNER_TEMP/release-passphrase"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-file "$RUNNER_TEMP/release-passphrase" \
+            --local-user "$GPG_FINGERPRINT" --armor --detach-sign .release/assets/SHA256SUMS
+          gh release upload "$GITHUB_REF_NAME" --clobber .release/assets/images.json .release/assets/SHA256SUMS .release/assets/SHA256SUMS.asc
+          printf 'Draft %s is ready. Verify its artifacts, then run Release manually with this tag.\n' "$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
       - name: Clean up GPG key
         if: always()
-        run: rm -f /tmp/gpg-rpm-signing-key.asc
+        run: rm -f "$RUNNER_TEMP/gpg-rpm-signing-key.asc" "$RUNNER_TEMP/release-passphrase"
       - name: Tag and push images (amd64 only)
         id: tag_and_push_images
         if: |
+          github.repository == 'netbirdio/netbird' && (
           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-')))
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-'))))
         run: |
           set -euo pipefail
 
@@ -478,6 +536,7 @@ jobs:
       PYXIS_API_TOKEN: ${{ secrets.PYXIS_API_TOKEN }}
 
   release_ui:
+    if: github.repository == 'netbirdio/netbird' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       release_ui_artifact_url: ${{ steps.upload_release_ui.outputs.artifact-url }}
@@ -609,6 +668,7 @@ jobs:
           retention-days: 3
 
   release_ui_gtk3:
+    if: github.repository == 'netbirdio/netbird' && github.event_name != 'workflow_dispatch'
     # Legacy GTK3/WebKit2GTK 4.1 UI build for distros without WebKitGTK 6.0
     # (Ubuntu 22.04, Debian 12, RHEL 9, Fedora <=39). Runs on ubuntu-22.04 so
     # the binary links against the oldest supported glibc.
@@ -735,6 +795,7 @@ jobs:
           retention-days: 3
 
   release_ui_darwin:
+    if: github.repository == 'netbirdio/netbird' && github.event_name != 'workflow_dispatch'
     runs-on: macos-latest
     outputs:
       release_ui_darwin_artifact_url: ${{ steps.upload_release_ui_darwin.outputs.artifact-url }}
@@ -795,6 +856,7 @@ jobs:
           retention-days: 3
 
   test_windows_installer:
+    if: github.repository == 'netbirdio/netbird' && github.event_name != 'workflow_dispatch'
     name: "Windows Installer / Build Test"
     runs-on: windows-2022
     needs: [release, release_ui]
@@ -1047,7 +1109,7 @@ jobs:
   trigger_signer:
     runs-on: ubuntu-latest
     needs: [release, release_ui, release_ui_gtk3, release_ui_darwin, test_windows_installer]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.repository == 'netbirdio/netbird' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Trigger binaries sign pipelines
         uses: benc-uk/workflow-dispatch@31e2b3319479a63f0ab15bf800eff9e913504e26 # v1.3.2
@@ -1057,3 +1119,56 @@ jobs:
           ref: ${{ env.SIGN_PIPE_VER }}
           token: ${{ secrets.SIGN_GITHUB_TOKEN }}
           inputs: '{ "tag": "${{ github.ref }}", "skipRelease": false }'
+
+  publish:
+    if: github.repository == 'qiudesong/netbird' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: qiudesong/netbird
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate release tag name before checkout
+        run: |
+          number='(0|[1-9][0-9]*)'
+          pattern="^v${number}\\.${number}\\.${number}-custom\\.[1-9][0-9]*$"
+          if [[ ! "$RELEASE_TAG" =~ $pattern ]]; then
+            echo 'Expected an annotated vX.Y.Z-custom.N release tag.' >&2
+            exit 1
+          fi
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release provenance
+        run: |
+          git fetch --no-tags https://github.com/netbirdio/netbird.git '+refs/tags/v*:refs/upstream-tags/v*'
+          bash release_files/skip-latest.sh prepare "$RELEASE_TAG" --assets "$RUNNER_TEMP/release-provenance"
+      - name: Verify signed release assets
+        env:
+          CUSTOM_GPG_PUBLIC_KEY: ${{ vars.CUSTOM_GPG_PUBLIC_KEY }}
+          CUSTOM_GPG_FINGERPRINT: ${{ vars.CUSTOM_GPG_FINGERPRINT }}
+        run: |
+          test -n "$CUSTOM_GPG_PUBLIC_KEY"
+          test -n "$CUSTOM_GPG_FINGERPRINT"
+          printf '%s' "$CUSTOM_GPG_PUBLIC_KEY" > "$RUNNER_TEMP/release-public-key.asc"
+          fingerprint=$(gpg --show-keys --with-colons "$RUNNER_TEMP/release-public-key.asc" | awk -F: '$1 == "fpr" {print $10; exit}')
+          test "$fingerprint" = "$CUSTOM_GPG_FINGERPRINT"
+          mkdir -m 700 "$RUNNER_TEMP/release-gnupg"
+          gpg --homedir "$RUNNER_TEMP/release-gnupg" --batch --import "$RUNNER_TEMP/release-public-key.asc"
+          gh release download "$RELEASE_TAG" --dir .release/assets
+          gpg --homedir "$RUNNER_TEMP/release-gnupg" --batch --verify .release/assets/SHA256SUMS.asc .release/assets/SHA256SUMS
+          cmp "$RUNNER_TEMP/release-provenance/release.json" .release/assets/release.json
+          bash release_files/skip-latest.sh verify "$RELEASE_TAG" --assets .release/assets
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish existing artifacts and promote image digests
+        run: bash release_files/skip-latest.sh publish "$RELEASE_TAG" --assets .release/assets

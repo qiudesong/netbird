@@ -13,10 +13,11 @@ set -eu
 
 OUT=.goreleaser.generated.yaml
 
-TAG="${GITHUB_REF#refs/tags/}"
+TAG="${GITHUB_REF:-}"
+TAG="${TAG#refs/tags/}"
 case "$TAG" in
 v*) ;;
-*) TAG=$(git describe --tags --abbrev=0) ;;
+*) TAG=$(git describe --tags --abbrev=0 2>/dev/null || printf v0.0.0) ;;
 esac
 
 EVR=$(python3 - "$TAG" <<'PYEOF'

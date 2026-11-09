@@ -14,7 +14,7 @@ builds:
     goarch:
       - wasm
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird
@@ -36,7 +36,7 @@ builds:
       - goos: windows
         goarch: 386
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
     tags:
       - load_wgnt_from_rsrc
@@ -54,7 +54,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
     tags:
       - load_wgnt_from_rsrc
@@ -71,7 +71,7 @@ builds:
       - arm
       - 386
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
     tags:
       - load_wgnt_from_rsrc
@@ -86,7 +86,7 @@ builds:
     goos: [linux]
     goarch: [amd64]
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
     tags:
       - load_wgnt_from_rsrc
@@ -123,7 +123,7 @@ builds:
       - hardfloat
       - softfloat
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
     tags:
       - load_wgnt_from_rsrc
@@ -147,7 +147,7 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-signal
@@ -163,7 +163,7 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-relay
@@ -179,7 +179,7 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-server
@@ -201,7 +201,7 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-upload
@@ -217,7 +217,7 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-proxy
@@ -256,7 +256,7 @@ builds:
       - goos: darwin
         goarch: arm
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}}
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version
     mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: netbird-idp-migrate
@@ -278,34 +278,34 @@ builds:
     goarm:
       - 7
     ldflags:
-      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+      - -s -w -X github.com/netbirdio/netbird/version.version={{.Version}} -X github.com/netbirdio/netbird/version.versionURL=https://github.com/qiudesong/netbird/releases/latest/download/version -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 universal_binaries:
   - id: netbird
 
 archives:
-  - builds:
+  - ids:
       - netbird
       - netbird-static
   - id: netbird-wasm
-    builds:
+    ids:
       - netbird-wasm
     name_template: "{{ .ProjectName }}_{{ .Version }}"
-    format: binary
+    formats: [binary]
   - id: netbird-idp-migrate
-    builds:
+    ids:
       - netbird-idp-migrate
     name_template: "netbird-idp-migrate_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
   - id: nblink
-    builds:
+    ids:
       - nblink
     name_template: "nblink_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     # goreleaser archives as tar.gz everywhere unless told otherwise, and
     # nblink is downloaded and extracted by hand on Windows too.
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 nfpms:
   - maintainer: Netbird <dev@netbird.io>
@@ -314,8 +314,11 @@ nfpms:
     license: BSD-3-Clause
     vendor: NetBird
     id: netbird_deb
+    package_name: netbird-mod
+    conflicts: [netbird]
+    replaces: [netbird]
     bindir: /usr/bin
-    builds:
+    ids:
       - netbird-pkcs11
       - netbird-deb-32bit
     formats:
@@ -331,6 +334,9 @@ nfpms:
     license: BSD-3-Clause
     vendor: NetBird
     id: netbird_rpm_amd64
+    package_name: netbird-mod
+    conflicts: [netbird]
+    replaces: [netbird]
     bindir: /usr/bin
     ids:
       - netbird-rpm-amd64
@@ -339,7 +345,7 @@ nfpms:
     # Red Hat certification (RPM Version Handling) requires rpmbuild's ISA
     # provide, which nfpm does not emit. The version is filled in by the release job.
     provides:
-      - "netbird(x86-64) = @RPM_EVR@"
+      - "netbird-mod(x86-64) = @RPM_EVR@"
     # The client verifies TLS to management and signal against the system trust
     # store. Red Hat software certification (RPM Dependency Tracking) also
     # rejects packages that declare no dependencies at all.
@@ -378,32 +384,31 @@ nfpms:
     ids:
       - netbird-rpm-arm64
     provides:
-      - "netbird(aarch-64) = @RPM_EVR@"
+      - "netbird-mod(aarch-64) = @RPM_EVR@"
 
   - <<: *netbird_rpm
     id: netbird_rpm_arm
     ids:
       - netbird-rpm-arm
     provides:
-      - "netbird(armv6hl-32) = @RPM_EVR@"
+      - "netbird-mod(armv6hl-32) = @RPM_EVR@"
 
   - <<: *netbird_rpm
     id: netbird_rpm_386
     ids:
       - netbird-rpm-386
     provides:
-      - "netbird(x86-32) = @RPM_EVR@"
+      - "netbird-mod(x86-32) = @RPM_EVR@"
 dockers_v2:
    - id: netbird
      disable: "{{ .Env.SKIP_DOCKER_PUSH }}"
      ids:
        - netbird
      images:
-       - netbirdio/netbird
-       - ghcr.io/netbirdio/netbird
+       - ghcr.io/qiudesong/netbird
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: client/Dockerfile
      extra_files:
        - client/netbird-entrypoint.sh
@@ -423,11 +428,10 @@ dockers_v2:
      ids:
        - netbird
      images:
-       - netbirdio/netbird
-       - ghcr.io/netbirdio/netbird
+       - ghcr.io/qiudesong/netbird
      tags:
        - "{{ .Version }}-rootless"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}rootless-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-rootless-latest{{ end }}"
      dockerfile: client/Dockerfile-rootless
      extra_files:
        - client/netbird-entrypoint.sh
@@ -447,11 +451,10 @@ dockers_v2:
      ids:
        - netbird
      images:
-       - netbirdio/netbird
-       - ghcr.io/netbirdio/netbird
+       - ghcr.io/qiudesong/netbird
      tags:
        - "{{ .Version }}-rootless-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}rootless-ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-rootless-ubi-latest{{ end }}"
      dockerfile: client/Dockerfile-rootless.ubi
      extra_files:
        - client/netbird-entrypoint.sh
@@ -484,11 +487,10 @@ dockers_v2:
      ids:
        - netbird-relay
      images:
-       - netbirdio/relay
-       - ghcr.io/netbirdio/relay
+       - ghcr.io/qiudesong/relay
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: relay/Dockerfile
      platforms:
        - linux/amd64
@@ -506,11 +508,10 @@ dockers_v2:
      ids:
        - netbird-relay
      images:
-       - netbirdio/relay
-       - ghcr.io/netbirdio/relay
+       - ghcr.io/qiudesong/relay
      tags:
        - "{{ .Version }}-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-ubi-latest{{ end }}"
      dockerfile: relay/Dockerfile.ubi
      platforms:
        - linux/amd64
@@ -541,11 +542,10 @@ dockers_v2:
      ids:
        - netbird-signal
      images:
-       - netbirdio/signal
-       - ghcr.io/netbirdio/signal
+       - ghcr.io/qiudesong/signal
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: signal/Dockerfile
      platforms:
        - linux/amd64
@@ -563,11 +563,10 @@ dockers_v2:
      ids:
        - netbird-signal
      images:
-       - netbirdio/signal
-       - ghcr.io/netbirdio/signal
+       - ghcr.io/qiudesong/signal
      tags:
        - "{{ .Version }}-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-ubi-latest{{ end }}"
      dockerfile: signal/Dockerfile.ubi
      platforms:
        - linux/amd64
@@ -598,11 +597,10 @@ dockers_v2:
      ids:
        - netbird-mgmt
      images:
-       - netbirdio/management
-       - ghcr.io/netbirdio/management
+       - ghcr.io/qiudesong/management
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: management/Dockerfile
      platforms:
        - linux/amd64
@@ -620,11 +618,10 @@ dockers_v2:
      ids:
        - netbird-mgmt
      images:
-       - netbirdio/management
-       - ghcr.io/netbirdio/management
+       - ghcr.io/qiudesong/management
      tags:
        - "{{ .Version }}-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-ubi-latest{{ end }}"
      dockerfile: management/Dockerfile.ubi
      platforms:
        - linux/amd64
@@ -655,11 +652,10 @@ dockers_v2:
      ids:
        - netbird-upload
      images:
-       - netbirdio/upload
-       - ghcr.io/netbirdio/upload
+       - ghcr.io/qiudesong/upload
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: upload-server/Dockerfile.release
      platforms:
        - linux/amd64
@@ -677,11 +673,10 @@ dockers_v2:
      ids:
        - netbird-server
      images:
-       - netbirdio/netbird-server
-       - ghcr.io/netbirdio/netbird-server
+       - ghcr.io/qiudesong/netbird-server
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: combined/Dockerfile
      platforms:
        - linux/amd64
@@ -699,11 +694,10 @@ dockers_v2:
      ids:
        - netbird-server
      images:
-       - netbirdio/netbird-server
-       - ghcr.io/netbirdio/netbird-server
+       - ghcr.io/qiudesong/netbird-server
      tags:
        - "{{ .Version }}-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-ubi-latest{{ end }}"
      dockerfile: combined/Dockerfile.ubi
      platforms:
        - linux/amd64
@@ -734,11 +728,10 @@ dockers_v2:
      ids:
        - netbird-proxy
      images:
-       - netbirdio/reverse-proxy
-       - ghcr.io/netbirdio/reverse-proxy
+       - ghcr.io/qiudesong/reverse-proxy
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: proxy/Dockerfile
      platforms:
        - linux/amd64
@@ -756,11 +749,10 @@ dockers_v2:
      ids:
        - nblink
      images:
-       - netbirdio/nblink
-       - ghcr.io/netbirdio/nblink
+       - ghcr.io/qiudesong/nblink
      tags:
        - "{{ .Version }}"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-latest{{ end }}"
      dockerfile: client/Dockerfile-nblink
      platforms:
        - linux/amd64
@@ -778,11 +770,10 @@ dockers_v2:
      ids:
        - netbird-proxy
      images:
-       - netbirdio/reverse-proxy
-       - ghcr.io/netbirdio/reverse-proxy
+       - ghcr.io/qiudesong/reverse-proxy
      tags:
        - "{{ .Version }}-ubi"
-       - "{{ if eq .Env.SKIP_LATEST \"false\" }}ubi-latest{{ end }}"
+       - "{{ if eq .Env.SKIP_LATEST \"false\" }}custom-ubi-latest{{ end }}"
      dockerfile: proxy/Dockerfile.ubi
      platforms:
        - linux/amd64
@@ -809,28 +800,26 @@ dockers_v2:
        "org.opencontainers.image.source": "{{.GitURL}}"
        "maintainer": "dev@netbird.io"
 
-brews:
+homebrew_casks:
   - ids:
       - default
     # The tap holds one version, so a patch on an older line must not overwrite it.
     skip_upload: "{{ .Env.SKIP_LATEST }}"
     repository:
-      owner: netbirdio
+      owner: qiudesong
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     commit_author:
       name: Netbird
       email: dev@netbird.io
     description: Netbird project.
-    download_strategy: CurlDownloadStrategy
     homepage: https://netbird.io/
-    license: "BSD3"
-    test: |
-      system "#{bin}/{{ .ProjectName	}} version"
+    license: "BSD-3-Clause"
+    binaries: [netbird]
 
 uploads:
   - name: debian
-    skip: "{{ .Env.SKIP_PUBLISH }}"
+    skip: true # Configure independent package hosting before enabling uploads.
     ids:
       - netbird_deb
     mode: archive
@@ -839,7 +828,7 @@ uploads:
     method: PUT
 
   - name: yum
-    skip: "{{ .Env.SKIP_PUBLISH }}"
+    skip: true # Configure independent package hosting before enabling uploads.
     ids:
       - netbird_rpm_amd64
       - netbird_rpm_arm64
@@ -851,24 +840,33 @@ uploads:
     method: PUT
 
 checksum:
+  name_template: SHA256SUMS
   extra_files:
     - glob: ./infrastructure_files/getting-started-with-zitadel.sh
     - glob: ./release_files/install.sh
+    - glob: .release/version
+    - glob: .release/release.json
+    - glob: .release/signing-key.asc
     - glob: ./infrastructure_files/getting-started.sh
     - glob: ./infrastructure_files/getting-started-enterprise.sh
     - glob: ./infrastructure_files/migrate-to-enterprise.sh
 
 release:
-  # The signing pipeline (netbirdio/sign-pipelines, dispatched by
-  # trigger_signer) marks the release latest once the Windows and macOS
-  # artifacts are signed. Without this override goreleaser marks it latest
-  # at publish time, while those artifacts are still unsigned.
+  # The release workflow verifies and promotes these exact draft artifacts.
+  # Building an old maintenance release must not move the latest pointers.
   make_latest: false
-  # Mark x.y.z-rc.* and other prerelease tags as prereleases on GitHub.
-  prerelease: auto
+  # Numbered -custom.N tags are stable fork releases, promoted after verification.
+  github:
+    owner: qiudesong
+    name: netbird
+  draft: true
+  prerelease: false
   extra_files:
     - glob: ./infrastructure_files/getting-started-with-zitadel.sh
     - glob: ./release_files/install.sh
+    - glob: .release/version
+    - glob: .release/release.json
+    - glob: .release/signing-key.asc
     - glob: ./infrastructure_files/getting-started.sh
     - glob: ./infrastructure_files/getting-started-enterprise.sh
     - glob: ./infrastructure_files/migrate-to-enterprise.sh

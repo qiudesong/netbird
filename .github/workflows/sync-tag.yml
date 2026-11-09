@@ -5,16 +5,28 @@ on:
     tags:
       - "v*"
 
+  schedule:
+    - cron: '0 2 * * 1' # Monday 10:00 Asia/Shanghai.
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: Official stable tag; empty selects the latest release
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || github.actor_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 # The receiving bump-netbird workflows expect the short tag form
 # (e.g. v0.30.0), not refs/tags/v0.30.0 — github.ref_name, not github.ref.
 jobs:
   trigger_dashboard_bump:
     runs-on: ubuntu-latest
-    if: github.event.created && !github.event.deleted && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    if: github.repository == 'netbirdio/netbird' && github.event.created && !github.event.deleted && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
     steps:
       - name: Trigger dashboard wasm client bump
         uses: benc-uk/workflow-dispatch@31e2b3319479a63f0ab15bf800eff9e913504e26 # v1.3.2
@@ -24,3 +36,69 @@ jobs:
           repo: netbirdio/dashboard
           token: ${{ secrets.NC_GITHUB_TOKEN }}
           inputs: '{ "tag": "${{ github.ref_name }}" }'
+
+  sync_upstream_release:
+    if: github.repository == 'qiudesong/netbird' && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+      UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Open upstream release merge pull request
+        run: |
+          set -euo pipefail
+
+          repository=qiudesong/netbird
+          tag=${UPSTREAM_TAG:-$(gh api repos/netbirdio/netbird/releases/latest --jq .tag_name)}
+          if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "expected an official stable tag: $tag" >&2
+              exit 1
+          fi
+          git fetch origin main
+          git fetch --no-tags https://github.com/netbirdio/netbird.git "refs/tags/$tag:refs/upstream-tags/$tag"
+          base="refs/upstream-tags/$tag"
+          if git merge-base --is-ancestor "$base" origin/main; then
+              echo "$tag is already incorporated into main."
+              exit 0
+          fi
+          branch="sync/upstream-$tag"
+          existing=$(gh pr list --repo "$repository" --head "$branch" --state open --json url --jq '.[].url')
+          if [[ -n "$existing" ]]; then
+              echo "Synchronization PR already exists: $existing"
+              exit 0
+          fi
+          if [[ -n "$(git ls-remote --heads origin "refs/heads/$branch")" ]]; then
+              echo "Branch $branch already exists without an open PR; inspect it manually." >&2
+              exit 1
+          fi
+          git config user.name 'Desong Qiu'
+          git config user.email 'desongqiu@gmail.com'
+          git switch -c "$branch" origin/main
+          if ! git merge --no-ff "$base" -m "[chore] Merge upstream $tag"; then
+              {
+                  printf 'Upstream %s requires manual conflict resolution:\n\n```\n' "$tag"
+                  git diff --name-only --diff-filter=U
+                  printf '```\n'
+              } >> "${GITHUB_STEP_SUMMARY:-/dev/stderr}"
+              git merge --abort
+              exit 1
+          fi
+          # Checkout credentials are not persisted; gh supplies authentication only here.
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
+          body=$(mktemp)
+          trap 'rm -f "$body"' EXIT
+          {
+              printf 'Merge official NetBird `%s` into the downstream main branch.\n\n' "$tag"
+              printf 'Upstream commit: `%s`.\n\n' "$(git rev-parse "$base^{commit}")"
+              printf 'Validate CI and downstream compatibility, then merge using **Create a merge commit**. Do not squash this PR.\n'
+          } > "$body"
+          gh pr create --repo "$repository" --base main --head "$branch" \
+              --title "[chore] Sync upstream $tag" --body-file "$body"
